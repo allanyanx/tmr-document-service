@@ -43,9 +43,72 @@ server.post('/api/reports/generate', async (request, reply) => {
     }
 });
 
+// Endpoint para consultar el estado del trabajo
+server.get('/api/reports/status/:jobId', async (request, reply) => {
+    const { jobId } = request.params as { jobId: string };
+
+    try {
+        // Buscamos el trabajo en la cola de Redis
+        const job = await documentQueue.getJob(jobId);
+
+        if (!job) {
+            return reply.code(404).send({ error: 'Trabajo no encontrado' });
+        }
+
+        // Determinamos el estado del trabajo
+        const state = await job.getState();
+
+        if (state === 'completed') {
+            return reply.code(200).send({
+                status: 'COMPLETED',
+                // job.returnvalue contiene lo que el Worker retornó
+                result: job.returnvalue 
+            });
+        } else if (state === 'failed') {
+            return reply.code(200).send({
+                status: 'FAILED',
+                error: job.failedReason
+            });
+        } else {
+            // states: 'waiting', 'active', 'delayed', etc.
+            return reply.code(200).send({
+                status: state.toUpperCase(),
+                message: 'El documento se está procesando...'
+            });
+        }
+    } catch (error) {
+        server.log.error(error);
+        return reply.code(500).send({ error: 'Error al consultar el estado' });
+    }
+});
+
+// Endpoint temporal para descargar los PDFs generados localmente
+server.get('/api/reports/download/:filename', async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+
+        const filePath = path.join(process.cwd(), 'outputs', filename);
+
+        if (!fs.existsSync(filePath)) {
+            return reply.code(404).send({ error: 'Archivo no encontrado' });
+        }
+
+        const stream = fs.createReadStream(filePath);
+        reply.header('Content-Type', 'application/pdf');
+        reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+        return reply.send(stream);
+    } catch (error) {
+        server.log.error(error);
+        return reply.code(500).send({ error: 'Error al descargar archivo' });
+    }
+});
+
 const start = async () => {
     try {
-        await server.listen({ port: 3000, host: '0.0.0.0' });
+        await server.listen({ port: 3001, host: '0.0.0.0' });
         console.log('🚀 Servidor corriendo en http://localhost:3000');
     } catch (err) {
         server.log.error(err);

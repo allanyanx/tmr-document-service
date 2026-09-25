@@ -1,13 +1,9 @@
 import carbone from 'carbone';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export class CarboneAdapter {
   generateDocument(templateName: string, data: any): Promise<Buffer> {
-    const templatePath = path.resolve(__dirname, '../../../../templates', templateName);
+    const templatePath = path.join(process.cwd(), 'templates', templateName);
 
         return new Promise((resolve, reject) => {
           // Opciones: convertTo indica que queremos exportar a PDF (requiere LibreOffice)
