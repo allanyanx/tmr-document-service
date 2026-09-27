@@ -12,11 +12,11 @@ const carboneAdapter = new CarboneAdapter();
 // Esquema de validación para el body de la petición
 const generateReportSchema = z.object({
   templateName: z.string().min(1, "El nombre de la plantilla es obligatorio"),
-  data: z.any(),
-  format: z.enum(['pdf', 'docx', 'xlsx']).default('pdf')
+  data: z.any(), // Aquí irán los datos dinámicos a inyectar en la plantilla
+  format: z.enum(['pdf', 'docx', 'xlsx']).default('pdf') // Formato deseado de salida
 });
 
-// Endpoint de Healthcheck
+// Endpoint de Healthcheck (vital para Docker/Dokploy)
 server.get('/health', async (request, reply) => {
     return { status: 'OK', service: 'Document Generator' };
 });
@@ -24,19 +24,20 @@ server.get('/health', async (request, reply) => {
 // 1. ENDPOINT DIRECTO (Sincrónico): Genera el documento y lo devuelve descargable
 server.post('/api/reports/render', async (request, reply) => {
     try {
+        // 1. Validamos los datos de entrada
         const body = generateReportSchema.parse(request.body);
         
-        // Genera el Buffer en memoria
+        // 2. Genera el Buffer en memoria
         const buffer = await carboneAdapter.generateDocument(body.templateName, body.data, body.format as SupportedFormat);
 
-        // Mapeo de MIME Types según formato
+        // 3. Mapeo de MIME Types según formato para la correcta descarga en el cliente
         let mimeType = 'application/pdf';
         if (body.format === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         if (body.format === 'xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
         const filename = `reporte_${Date.now()}.${body.format}`;
 
-        // Respondemos enviando el buffer como archivo adjunto para descarga
+        // 4. Respondemos enviando el buffer como archivo adjunto para descarga
         return reply
             .header('Content-Type', mimeType)
             .header('Content-Disposition', `attachment; filename="${filename}"`)
@@ -54,14 +55,17 @@ server.post('/api/reports/render', async (request, reply) => {
 // 2. ENDPOINT ASÍNCRONO (Cola): Encola el trabajo en BullMQ
 server.post('/api/reports/generate', async (request, reply) => {
     try {
+        // 1. Validamos los datos de entrada
         const body = generateReportSchema.parse(request.body);
 
+        // 2. Insertamos el trabajo en la cola de BullMQ
         const job = await documentQueue.add('generate-report', {
             templateName: body.templateName,
             data: body.data,
             format: body.format
         });
 
+        // 3. Respondemos rápidamente con un 202 Accepted y el ID del trabajo
         return reply.code(202).send({
             message: 'Generación de reporte encolada con éxito',
             jobId: job.id,
