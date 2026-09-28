@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { documentQueue } from '../infrastructure/queue/documentQueue.js';
 import fs from 'fs';

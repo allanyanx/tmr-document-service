@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
+import fastifyMultipart from '@fastify/multipart';
 import reportRoutes from './routes/reportRoutes.js';
+import templateRoutes from './routes/templateRoutes.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -18,8 +20,16 @@ server.get('/health', async (request, reply) => {
     return { status: 'OK', service: 'Document Generator' };
 });
 
+// Registramos el plugin para subida de archivos
+server.register(fastifyMultipart, {
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    }
+});
+
 // Registramos las rutas, separando responsabilidades (SOLID - Single Responsibility Principle)
 server.register(reportRoutes);
+server.register(templateRoutes);
 
 const start = async () => {
     try {
